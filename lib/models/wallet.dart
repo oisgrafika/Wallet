@@ -19,6 +19,7 @@ class Wallet {
   final String? color;
   final String? frontImagePath;
   final String? backImagePath;
+  final String displayMode;
   int orderIndex;
 
   Wallet({
@@ -39,6 +40,7 @@ class Wallet {
     this.color,
     this.frontImagePath,
     this.backImagePath,
+    this.displayMode = 'generated',
     this.orderIndex = 0,
   });
 
@@ -61,6 +63,7 @@ class Wallet {
       'color': color,
       'frontImagePath': frontImagePath,
       'backImagePath': backImagePath,
+      'displayMode': displayMode,
       'orderIndex': orderIndex,
     };
   }
@@ -87,6 +90,7 @@ class Wallet {
       'color': enc.encryptText(color),
       'frontImagePath': frontImagePath,
       'backImagePath': backImagePath,
+      'displayMode': enc.encryptText(displayMode),
       'orderIndex': orderIndex,
     };
   }
@@ -112,6 +116,7 @@ class Wallet {
       color: map['color'],
       frontImagePath: map['frontImagePath'],
       backImagePath: map['backImagePath'],
+      displayMode: map['displayMode'] ?? ((map['frontImagePath'] as String?)?.isNotEmpty == true ? 'photo' : 'generated'),
       orderIndex: map['orderIndex'] ?? 0,
     );
   }
@@ -138,6 +143,7 @@ class Wallet {
       color: enc.decryptText(map['color']),
       frontImagePath: map['frontImagePath'],
       backImagePath: map['backImagePath'],
+      displayMode: enc.decryptText(map['displayMode']) ?? ((map['frontImagePath'] as String?)?.isNotEmpty == true ? 'photo' : 'generated'),
       orderIndex: map['orderIndex'] ?? 0,
     );
   }
@@ -154,9 +160,11 @@ class Wallet {
       network: enc.decryptText(map['network']),
       issuer: enc.decryptText(map['issuer']),
       cardtype: enc.decryptText(map['cardtype']),
+      category: enc.decryptText(map['category']),
       color: enc.decryptText(map['color']),
       frontImagePath: map['frontImagePath'],
       backImagePath: map['backImagePath'],
+      displayMode: enc.decryptText(map['displayMode']) ?? ((map['frontImagePath'] as String?)?.isNotEmpty == true ? 'photo' : 'generated'),
       orderIndex: map['orderIndex'] ?? 0,
     );
   }

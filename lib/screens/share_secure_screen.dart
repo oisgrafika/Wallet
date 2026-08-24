@@ -242,7 +242,7 @@ class _ShareSecureScreenState extends State<ShareSecureScreen> {
 
                       if (Platform.isAndroid) {
                         try {
-                          const channel = MethodChannel('com.sidhant.wallet/save_file');
+                          const channel = MethodChannel('com.oisgrafika.wallet/save_file');
                           await channel.invokeMethod('savePkpass', {
                             'bytes': bytes,
                             'name': fileName,

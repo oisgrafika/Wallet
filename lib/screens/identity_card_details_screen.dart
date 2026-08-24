@@ -183,10 +183,25 @@ class _IdentityCardDetailScreenState extends State<IdentityCardDetailScreen> {
           IdentityCardWidget(
             card: currentCard,
             onTap: () {
-              ClipboardService.instance.copy(currentCard.value);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('ID Number Copied!')),
-              );
+              if ((currentCard.displayMode == 'photo' ||
+                      currentCard.displayMode == 'template') &&
+                  _isPathValid(currentCard.frontImagePath)) {
+                Navigator.push(
+                  context,
+                  SmoothPageRoute(
+                    page: FullScreenImageViewer(
+                      imagePath: currentCard.frontImagePath!,
+                    ),
+                  ),
+                );
+                return;
+              }
+              if (currentCard.value.isNotEmpty) {
+                ClipboardService.instance.copy(currentCard.value);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('ID Number Copied!')),
+                );
+              }
             },
           ),
           const SizedBox(height: 24),
@@ -216,8 +231,12 @@ class _IdentityCardDetailScreenState extends State<IdentityCardDetailScreen> {
             child: Column(
               children: [
                 _buildDetailRow("Card Type", currentCard.cardType, isDark),
-                _buildDetailRow("Name", currentCard.name, isDark),
-                _buildDetailRow("ID Number", currentCard.value, isDark),
+                if (currentCard.category?.isNotEmpty ?? false)
+                  _buildDetailRow("Category", currentCard.category!, isDark),
+                if (currentCard.name.isNotEmpty)
+                  _buildDetailRow("Name", currentCard.name, isDark),
+                if (currentCard.value.isNotEmpty)
+                  _buildDetailRow("ID Number", currentCard.value, isDark),
               ],
             ),
           ),

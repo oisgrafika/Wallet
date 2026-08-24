@@ -8,6 +8,8 @@ class IdentityCard {
   final String? frontImagePath;
   final String? backImagePath;
   final String? color;
+  final String? category;
+  final String displayMode;
   int orderIndex;
 
   IdentityCard({
@@ -18,6 +20,8 @@ class IdentityCard {
     this.frontImagePath,
     this.backImagePath,
     this.color,
+    this.category,
+    this.displayMode = 'generated',
     this.orderIndex = 0,
   });
 
@@ -30,6 +34,8 @@ class IdentityCard {
       'frontImagePath': frontImagePath,
       'backImagePath': backImagePath,
       'color': color,
+      'category': category,
+      'displayMode': displayMode,
       'orderIndex': orderIndex,
     };
   }
@@ -44,6 +50,8 @@ class IdentityCard {
       'frontImagePath': frontImagePath,
       'backImagePath': backImagePath,
       'color': color,
+      'category': enc.encryptText(category),
+      'displayMode': enc.encryptText(displayMode),
       'orderIndex': orderIndex,
     };
   }
@@ -57,6 +65,8 @@ class IdentityCard {
       frontImagePath: map['frontImagePath'],
       backImagePath: map['backImagePath'],
       color: map['color'],
+      category: map['category'],
+      displayMode: map['displayMode'] ?? ((map['frontImagePath'] as String?)?.isNotEmpty == true ? 'photo' : 'generated'),
       orderIndex: map['orderIndex'] ?? 0,
     );
   }
@@ -71,6 +81,8 @@ class IdentityCard {
       frontImagePath: map['frontImagePath'],
       backImagePath: map['backImagePath'],
       color: map['color'],
+      category: enc.decryptText(map['category']),
+      displayMode: enc.decryptText(map['displayMode']) ?? ((map['frontImagePath'] as String?)?.isNotEmpty == true ? 'photo' : 'generated'),
       orderIndex: map['orderIndex'] ?? 0,
     );
   }

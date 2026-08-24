@@ -85,7 +85,7 @@ class _MyAppState extends State<MyApp> {
           listen: false,
         );
         return MaterialApp(
-          title: 'Wallet',
+          title: 'OIS Wallet',
           debugShowCheckedModeBanner: false,
           theme: themeProvider.lightTheme,
           darkTheme: themeProvider.darkTheme,

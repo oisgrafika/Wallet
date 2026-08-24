@@ -35,7 +35,7 @@ class DatabaseHelper {
     final path = join(directory.path, 'walletbox.db');
     return openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE wallets(
@@ -56,6 +56,7 @@ class DatabaseHelper {
             color TEXT,
             frontImagePath TEXT,
             backImagePath TEXT,
+            displayMode TEXT,
             orderIndex INTEGER DEFAULT 0
           )
           ''');
@@ -101,6 +102,9 @@ class DatabaseHelper {
             'CREATE INDEX idx_wallets_order ON wallets(orderIndex);',
           );
         }
+        if (oldVersion < 8) {
+          await db.execute('ALTER TABLE wallets ADD COLUMN displayMode TEXT;');
+        }
       },
     );
   }
@@ -138,7 +142,7 @@ class DatabaseHelper {
     Database db = await instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
       'wallets',
-      columns: ['id', 'name', 'number', 'expiry', 'network', 'issuer', 'cardtype', 'color', 'frontImagePath', 'backImagePath', 'orderIndex'],
+      columns: ['id', 'name', 'number', 'expiry', 'network', 'issuer', 'cardtype', 'category', 'color', 'frontImagePath', 'backImagePath', 'displayMode', 'orderIndex'],
       orderBy: 'orderIndex ASC',
     );
     return List.generate(maps.length, (i) => Wallet.fromEncryptedMapSummary(maps[i]));
@@ -364,7 +368,7 @@ class IdentityDatabaseHelper {
     final path = join(directory.path, 'identities.db');
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE identities(
@@ -375,6 +379,8 @@ class IdentityDatabaseHelper {
             frontImagePath TEXT,
             backImagePath TEXT,
             color TEXT,
+            category TEXT,
+            displayMode TEXT,
             orderIndex INTEGER DEFAULT 0
           )
         ''');
@@ -388,6 +394,10 @@ class IdentityDatabaseHelper {
         }
         if (oldVersion < 3) {
           await db.execute('ALTER TABLE identities ADD COLUMN color TEXT;');
+        }
+        if (oldVersion < 4) {
+          await db.execute('ALTER TABLE identities ADD COLUMN category TEXT;');
+          await db.execute('ALTER TABLE identities ADD COLUMN displayMode TEXT;');
         }
       },
     );

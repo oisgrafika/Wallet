@@ -160,7 +160,7 @@ class PkpassService {
   Map<String, dynamic> _generatePassJson(Pass pass) {
     final Map<String, dynamic> passJson = {
       'formatVersion': 1,
-      'passTypeIdentifier': 'pass.com.sidhant.wallet',
+      'passTypeIdentifier': 'pass.com.oisgrafika.wallet',
       'teamIdentifier': 'WALLETBOX',
       'serialNumber': pass.id?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
       'organizationName': pass.organizationName,

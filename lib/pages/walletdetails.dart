@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wallet/services/clipboard_service.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:wallet/services/image_service.dart';
 import 'package:wallet/widgets/color_picker.dart';
+import 'package:wallet/widgets/card_appearance_selector.dart';
+import 'package:wallet/widgets/card_image_cropper.dart';
 import 'package:wallet/screens/homescreen.dart';
 import 'package:wallet/models/db_helper.dart';
 import 'package:wallet/models/provider_helper.dart';
@@ -213,10 +214,25 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
             isMasked: false,
             wallet: currentWallet,
             onCardTap: () {
-              ClipboardService.instance.copy(currentWallet.number);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Card Number Copied!')),
-              );
+              if ((currentWallet.displayMode == 'photo' ||
+                      currentWallet.displayMode == 'template') &&
+                  isPathValid(currentWallet.frontImagePath)) {
+                Navigator.push(
+                  context,
+                  SmoothPageRoute(
+                    page: FullScreenImageViewer(
+                      imagePath: currentWallet.frontImagePath!,
+                    ),
+                  ),
+                );
+                return;
+              }
+              if (currentWallet.number.isNotEmpty) {
+                ClipboardService.instance.copy(currentWallet.number);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Card Number Copied!')),
+                );
+              }
             },
           ),
           const SizedBox(height: 20),
@@ -248,6 +264,41 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               ],
             ),
           _LiquidGlassDetailSection(
+            title: "Card Details",
+            icon: Icons.info_outline_rounded,
+            children: [
+              if (currentWallet.category?.isNotEmpty ?? false)
+                _LiquidGlassDetailTile(
+                  icon: Icons.category_outlined,
+                  title: 'Category',
+                  value: currentWallet.category!,
+                ),
+              if (currentWallet.issuer?.isNotEmpty ?? false)
+                _LiquidGlassDetailTile(
+                  icon: Icons.account_balance_outlined,
+                  title: 'Issuer',
+                  value: currentWallet.issuer!,
+                ),
+              if (currentWallet.network?.isNotEmpty ?? false)
+                _LiquidGlassDetailTile(
+                  icon: Icons.credit_card_outlined,
+                  title: 'Network',
+                  value: currentWallet.network!.toUpperCase(),
+                ),
+              if (currentWallet.number.isNotEmpty)
+                _LiquidGlassDetailTile(
+                  icon: Icons.numbers_rounded,
+                  title: 'Saved Number',
+                  value: currentWallet.number.length > 4
+                      ? '•••• ${currentWallet.number.substring(currentWallet.number.length - 4)}'
+                      : currentWallet.number,
+                ),
+            ],
+          ),
+          if ((currentWallet.maxlimit?.isNotEmpty ?? false) ||
+              (currentWallet.spends?.isNotEmpty ?? false) ||
+              (currentWallet.rewards?.isNotEmpty ?? false))
+          _LiquidGlassDetailSection(
             title: "Financials",
             icon: Icons.account_balance_wallet_outlined,
             children: [
@@ -273,6 +324,9 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               ),
             ],
           ),
+          if ((currentWallet.billdate?.isNotEmpty ?? false) ||
+              (currentWallet.annualFeeWaiver?.isNotEmpty ?? false) ||
+              (currentWallet.cardtype?.isNotEmpty ?? false))
           _LiquidGlassDetailSection(
             title: "Billing & Terms",
             icon: Icons.event_note_outlined,
@@ -336,12 +390,12 @@ class WalletEditScreenState extends State<WalletEditScreen> {
       _rewardsController;
   late String _network;
   late String _selectedColor;
+  late String _displayMode;
   final List<TextEditingController> _customFieldNameControllers = [];
   final List<TextEditingController> _customFieldValueControllers = [];
 
   File? _frontImageFile;
   File? _backImageFile;
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -362,6 +416,7 @@ class WalletEditScreenState extends State<WalletEditScreen> {
     );
     _rewardsController = TextEditingController(text: wallet.rewards);
     _selectedColor = wallet.color ?? 'default';
+    _displayMode = wallet.displayMode;
 
     if (wallet.frontImagePath != null && wallet.frontImagePath!.isNotEmpty) {
       _frontImageFile = File(wallet.frontImagePath!);
@@ -420,22 +475,17 @@ class WalletEditScreenState extends State<WalletEditScreen> {
     }
   }
 
-  Future<void> _pickImage(ImageSource source, bool isFront) async {
-    final pickedFile = await _picker.pickImage(
-      source: source,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 85,
-    );
-    if (pickedFile != null) {
-      setState(() {
-        if (isFront) {
-          _frontImageFile = File(pickedFile.path);
-        } else {
-          _backImageFile = File(pickedFile.path);
-        }
-      });
-    }
+  Future<void> _pickImage(bool isFront) async {
+    final cropped = await pickAndCropCardImage(context);
+    if (cropped == null || !mounted) return;
+    setState(() {
+      if (isFront) {
+        _frontImageFile = cropped;
+      } else {
+        _backImageFile = cropped;
+      }
+      if (_displayMode == 'generated') _displayMode = 'photo';
+    });
   }
 
   void _addCustomField() {
@@ -464,6 +514,15 @@ class WalletEditScreenState extends State<WalletEditScreen> {
     final navigator = Navigator.of(context);
 
     if (_formKey.currentState!.validate()) {
+      if (_displayMode != 'generated' && _frontImageFile == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Add a front image or switch the appearance to Simple.'),
+          ),
+        );
+        return;
+      }
+
       Map<String, String> customFields = {};
       for (int i = 0; i < _customFieldNameControllers.length; i++) {
         String fieldName = _customFieldNameControllers[i].text.trim();
@@ -507,8 +566,16 @@ class WalletEditScreenState extends State<WalletEditScreen> {
         color: _selectedColor,
         frontImagePath: frontImagePath,
         backImagePath: backImagePath,
+        displayMode: _displayMode,
+        orderIndex: widget.wallet.orderIndex,
       );
       await DatabaseHelper.instance.updateWallet(updatedWallet);
+      if (widget.wallet.frontImagePath != frontImagePath) {
+        await DatabaseHelper.deleteImageFile(widget.wallet.frontImagePath);
+      }
+      if (widget.wallet.backImagePath != backImagePath) {
+        await DatabaseHelper.deleteImageFile(widget.wallet.backImagePath);
+      }
 
       await provider.fetchWallets();
       navigator.pop(updatedWallet);
@@ -522,13 +589,25 @@ class WalletEditScreenState extends State<WalletEditScreen> {
     final isDark = themeProvider.isDarkMode;
     final symbol = startupProvider.selectedCurrencySymbol;
 
+    final existingFrontPath = _frontImageFile != null &&
+            _frontImageFile!.path.endsWith('.enc')
+        ? _frontImageFile!.path
+        : null;
+    final previewFile = _frontImageFile != null &&
+            !_frontImageFile!.path.endsWith('.enc')
+        ? _frontImageFile
+        : null;
+
     final previewWallet = Wallet(
       id: widget.wallet.id,
       name: _nameController.text.isEmpty ? 'CARD NAME' : _nameController.text,
       number: _numberController.text,
       expiry: _expiryController.text,
       network: _network,
+      category: _categoryController.text,
       color: _selectedColor,
+      frontImagePath: existingFrontPath,
+      displayMode: _displayMode,
     );
 
     return Scaffold(
@@ -573,6 +652,8 @@ class WalletEditScreenState extends State<WalletEditScreen> {
             GlassCreditCard(
               isMasked: false,
               wallet: previewWallet,
+              previewImageFile: previewFile,
+              previewDisplayMode: _displayMode,
               onCardTap: () {},
             ),
             const SizedBox(height: 24),
@@ -580,18 +661,31 @@ class WalletEditScreenState extends State<WalletEditScreen> {
               title: "Primary Details",
               icon: Icons.credit_card_outlined,
               children: [
-                ColorPicker(
-                  selectedColor: _selectedColor,
-                  onColorSelected: (color) {
-                    setState(() => _selectedColor = color);
-                  },
+                CardAppearanceSelector(
+                  value: _displayMode,
+                  onChanged: (value) => setState(() => _displayMode = value),
                 ),
+                if (_displayMode == 'generated') ...[
+                  const SizedBox(height: 24),
+                  ColorPicker(
+                    selectedColor: _selectedColor,
+                    onColorSelected: (color) {
+                      setState(() => _selectedColor = color);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 24),
                 _buildTextField(
                   _nameController,
                   'Card Name',
                   isDark,
                   validator: (v) => v!.isEmpty ? 'Please enter a name' : null,
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  _categoryController,
+                  'Category (e.g. Bank, Work, Personal)',
+                  isDark,
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(
@@ -606,12 +700,10 @@ class WalletEditScreenState extends State<WalletEditScreen> {
                     ),
                   ],
                   validator: (v) {
-                    if (v == null || v.isEmpty) {
-                      return 'Please enter a card number';
-                    }
-                    final cleaned = v.replaceAll(RegExp(r'\D'), '');
-                    if (cleaned.length < 13 || cleaned.length > 19) {
-                      return 'Card number must be 13-19 digits';
+                    final cleaned = (v ?? '').replaceAll(RegExp(r'\D'), '');
+                    if (cleaned.isEmpty) return null;
+                    if (cleaned.length < 4 || cleaned.length > 19) {
+                      return 'Use 4-19 digits, or leave it empty';
                     }
                     return null;
                   },
@@ -626,14 +718,14 @@ class WalletEditScreenState extends State<WalletEditScreen> {
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(4),
                   ],
-                  validator: (v) => v!.length != 4 ? 'Must be 4 digits' : null,
+                  validator: (v) => (v == null || v.isEmpty || v.length == 4) ? null : 'Use MMYY or leave it empty',
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(
                   _issuerController,
                   'Card Issuer (e.g. HDFC)',
                   isDark,
-                  validator: (v) => v!.isEmpty ? 'Please enter an issuer' : null,
+                  
                 ),
                 const SizedBox(height: 16),
                 _buildDropdown('Card Network', _network, isDark, (newValue) {
@@ -651,7 +743,7 @@ class WalletEditScreenState extends State<WalletEditScreen> {
                   'Front Image',
                   _frontImageFile,
                   isDark,
-                  () => _pickImage(ImageSource.gallery, true),
+                  () => _pickImage(true),
                   () => setState(() => _frontImageFile = null),
                 ),
                 const SizedBox(height: 16),
@@ -659,7 +751,7 @@ class WalletEditScreenState extends State<WalletEditScreen> {
                   'Back Image',
                   _backImageFile,
                   isDark,
-                  () => _pickImage(ImageSource.gallery, false),
+                  () => _pickImage(false),
                   () => setState(() => _backImageFile = null),
                 ),
               ],

@@ -50,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   String _selectedFilter = 'all';
   String _selectedPassFilter = 'all';
+  String _selectedIdentityFilter = 'all';
 
   late final TextEditingController _searchController;
   String _searchQuery = "";
@@ -574,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             onPressed: () async {
               HapticFeedback.lightImpact();
-              const url = 'https://github.com/sidhant947/Wallet';
+              const url = 'https://github.com/oisgrafika/Wallet';
               await launchUrl(
                 Uri.parse(url),
                 mode: LaunchMode.externalApplication,
@@ -764,12 +765,43 @@ class _HomeScreenState extends State<HomeScreen> {
                 final networkMatch = wallet.network?.toLowerCase().contains(query) ?? false;
                 final issuerMatch = wallet.issuer?.toLowerCase().contains(query) ?? false;
                 final typeMatch = wallet.cardtype?.toLowerCase().contains(query) ?? false;
-                return nameMatch || numberMatch || networkMatch || issuerMatch || typeMatch;
+                final categoryMatch = wallet.category?.toLowerCase().contains(query) ?? false;
+                return nameMatch || numberMatch || networkMatch || issuerMatch || typeMatch || categoryMatch;
               }).toList();
 
-        // 2. Then, filter the result by the network button.
+        // 2. Filter by custom category or network.
+        final categoryNames = wallets
+            .map((wallet) => wallet.category?.trim() ?? '')
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+        final filterSegments = <ButtonSegment<String>>[
+          const ButtonSegment<String>(value: 'all', label: Text('ALL')),
+          ...categoryNames.map(
+            (category) => ButtonSegment<String>(
+              value: 'category:${category.toLowerCase()}',
+              label: Text(category.toUpperCase()),
+            ),
+          ),
+          const ButtonSegment<String>(value: 'visa', label: Text('VISA')),
+          const ButtonSegment<String>(
+            value: 'mastercard',
+            label: Text('MASTERCARD'),
+          ),
+        ];
+
+        if (!filterSegments.any((segment) => segment.value == _selectedFilter)) {
+          _selectedFilter = 'all';
+        }
+
         final List<Wallet> filteredWallets = searchedWallets.where((wallet) {
           if (_selectedFilter == 'all') return true;
+          if (_selectedFilter.startsWith('category:')) {
+            final selectedCategory = _selectedFilter.substring('category:'.length);
+            return wallet.category?.trim().toLowerCase() == selectedCategory;
+          }
           return wallet.network?.toLowerCase() == _selectedFilter;
         }).toList();
 
@@ -832,23 +864,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment<String>(value: 'all', label: Text('ALL')),
-                      ButtonSegment<String>(value: 'visa', label: Text('VISA')),
-                      ButtonSegment<String>(
-                        value: 'mastercard',
-                        label: Text('MASTERCARD'),
-                      ),
-                      ButtonSegment<String>(
-                        value: 'rupay',
-                        label: Text('RUPAY'),
-                      ),
-                      ButtonSegment<String>(value: 'amex', label: Text('AMEX')),
-                      ButtonSegment<String>(
-                        value: 'discover',
-                        label: Text('DISCOVER'),
-                      ),
-                    ],
+                    segments: filterSegments,
                     showSelectedIcon: false,
                     selected: <String>{_selectedFilter},
                     onSelectionChanged: (Set<String> newSelection) {
@@ -960,22 +976,54 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ],
                           ),
-                          child: GlassCreditCard(
-                            wallet: wallet,
-                            isMasked: true,
-                            onCardTap: () async {
-                              final navCtx = context;
-                              final provider = navCtx.read<WalletProvider>();
-                              final fullWallet = await provider.getWalletDetails(wallet.id!);
-                              if (fullWallet != null && navCtx.mounted) {
-                                Navigator.push(
-                                  navCtx,
-                                  SmoothPageRoute(
-                                    page: WalletDetailScreen(wallet: fullWallet),
-                                  ),
-                                );
-                              }
-                            },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              GlassCreditCard(
+                                wallet: wallet,
+                                isMasked: true,
+                                onCardTap: () async {
+                                  final navCtx = context;
+                                  final provider = navCtx.read<WalletProvider>();
+                                  final fullWallet = await provider.getWalletDetails(wallet.id!);
+                                  if (fullWallet != null && navCtx.mounted) {
+                                    Navigator.push(
+                                      navCtx,
+                                      SmoothPageRoute(
+                                        page: WalletDetailScreen(wallet: fullWallet),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        wallet.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    if (wallet.category?.isNotEmpty ?? false)
+                                      Text(
+                                        wallet.category!,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isDark ? Colors.white54 : Colors.black45,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -1268,7 +1316,31 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        final filteredIdentities = provider.searchIdentities(_searchQuery);
+        final searchedIdentities = provider.searchIdentities(_searchQuery);
+        final identityCategories = identities
+            .map((card) => card.category?.trim() ?? '')
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+        final identitySegments = <ButtonSegment<String>>[
+          const ButtonSegment<String>(value: 'all', label: Text('ALL')),
+          ...identityCategories.map(
+            (category) => ButtonSegment<String>(
+              value: category.toLowerCase(),
+              label: Text(category.toUpperCase()),
+            ),
+          ),
+        ];
+        if (!identitySegments.any((segment) => segment.value == _selectedIdentityFilter)) {
+          _selectedIdentityFilter = 'all';
+        }
+
+        final filteredIdentities = searchedIdentities.where((card) {
+          if (_selectedIdentityFilter == 'all') return true;
+          return card.category?.trim().toLowerCase() == _selectedIdentityFilter;
+        }).toList();
 
         return CustomScrollView(
           physics: const BouncingScrollPhysics(
@@ -1309,7 +1381,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            
+            if (identitySegments.length > 1)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SegmentedButton<String>(
+                      segments: identitySegments,
+                      showSelectedIcon: false,
+                      selected: {_selectedIdentityFilter},
+                      onSelectionChanged: (selection) {
+                        HapticFeedback.selectionClick();
+                        setState(() => _selectedIdentityFilter = selection.first);
+                      },
+                    ),
+                  ),
+                ),
+              ),
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
             
             if (filteredIdentities.isEmpty)
@@ -1401,19 +1490,51 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      child: IdentityCardWidget(
-                        card: card,
-                        onTap: () async {
-                           HapticFeedback.selectionClick();
-                           final identityProvider = Provider.of<IdentityProvider>(context, listen: false);
-                           final result = await Navigator.push(
-                             context,
-                             SmoothPageRoute(page: IdentityCardDetailScreen(card: card)),
-                           );
-                           if (result == true && mounted) {
-                             await identityProvider.fetchIdentities();
-                           }
-                        },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          IdentityCardWidget(
+                            card: card,
+                            onTap: () async {
+                               HapticFeedback.selectionClick();
+                               final identityProvider = Provider.of<IdentityProvider>(context, listen: false);
+                               final result = await Navigator.push(
+                                 context,
+                                 SmoothPageRoute(page: IdentityCardDetailScreen(card: card)),
+                               );
+                               if (result == true && mounted) {
+                                 await identityProvider.fetchIdentities();
+                               }
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    card.cardType,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                if (card.category?.isNotEmpty ?? false)
+                                  Text(
+                                    card.category!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark ? Colors.white54 : Colors.black45,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

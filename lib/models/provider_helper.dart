@@ -140,7 +140,9 @@ class IdentityProvider with ChangeNotifier {
 
     return identities.where((card) {
       return card.name.toLowerCase().contains(lowercaseQuery) ||
-          card.value.toLowerCase().contains(lowercaseQuery);
+          card.value.toLowerCase().contains(lowercaseQuery) ||
+          card.cardType.toLowerCase().contains(lowercaseQuery) ||
+          (card.category?.toLowerCase().contains(lowercaseQuery) ?? false);
     }).toList();
   }
 }
